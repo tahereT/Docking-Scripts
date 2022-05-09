@@ -32,16 +32,6 @@ def get_zincid(inchikey):
     return zinc_ids[0]
 
 
-def download_with_zincid(zincid, fr):
-    ### download sample from zinc15
-    ### zincid: str
-    ### fr: str - format of sample that you want to downalod from zinc15
-    ####################################################################
-    if os.path.isdir(f'ligands/{zincid}.{fr}') == False:
-        # os.mkdir('ligands')
-        urllib.request.urlretrieve(f'https://zinc15.docking.org/substances/{zincid}.{fr}', f'ligands/{zincid}.{fr}')
-        #print(f'download {zincid}.{fr} ligand')
-
 def get_rcsb_id(gene):
     ### create a query for search in rcsb database and return rcsb_id
     ### this query is based on gene name in homo sapiens
@@ -98,29 +88,60 @@ def get_rcsb_id(gene):
     data = json.loads(my_json)
     return data["result_set"][0]['identifier'][0:4]
 
+def download_with_zincid(zincid, fr):
+    ### download sample from zinc15
+    ### zincid: str
+    ### fr: str - format of sample that you want to downalod from zinc15
+    ####################################################################
+    if os.path.isdir(f'Data/ligands/{zincid}.{fr}') == False:
+        print('download ligand' , zincid)
+        urllib.request.urlretrieve(f'https://zinc15.docking.org/substances/{zincid}.{fr}', f'Data/ligands/{zincid}.{fr}')
+        #print(f'download {zincid}.{fr} ligand')
 
 def download_pdb(rcsbid):
     ### download pbd file of protein from rcsb database
     rcsbid = str(rcsbid)
-    print('download pdb receptor', rcsbid)
-    if os.path.isdir(f'receptor/{rcsbid}.pdb') == False:
-        #os.mkdir('receptor')
-        urllib.request.urlretrieve(f'https://files.rcsb.org/download/{rcsbid}.pdb', f'receptor/{rcsbid}.pdb')
+    if os.path.isdir(f'Data/receptor/{rcsbid}.pdb') == False:
+        print('download pdb receptor', rcsbid)
+        urllib.request.urlretrieve(f'https://files.rcsb.org/download/{rcsbid}.pdb', f'Data/receptor/{rcsbid}.pdb')
 
 def prepare_receptor(pdb_list):
     for pdb in pdb_list:
-        print('processing ', pdb)
-        command = ["prepare_receptor","-A", "-r" , f"receptor/{pdb}.pdb" , "-o", f"receptor/{pdb}.pdbqt"]
+        if os.path.isdir(f"Data/receptor/{pdb}.pdbqt"):
+            continue
+        print('preparing ', pdb)
+        command = ["prepare_receptor", "-r" , f"Data/receptor/{pdb}.pdb", "-o", f"Data/receptor/{pdb}.pdbqt"]
         subprocess.run(command)
 
 def prepare_ligand(ligand_list):
     for ligand in ligand_list:
-        print('processing ', ligand)
-        command = ["mk_prepare_ligand.py", "-i", f"ligands/{ligand}.sdf", "-o", f"ligands/{ligand}.pdbqt"]
+        if os.path.isdir(f"Data/ligands/{ligand}.pdbqt"):
+            continue
+        print('preparing ', ligand)
+        command = ["mk_prepare_ligand.py", "-i", f"Data/ligands/{ligand}.sdf", "-o", f"Data/ligands/{ligand}.pdbqt"]
         subprocess.run(command)
 
-def calculate_docking(receptor, ligand):
-    r = "receptor/" + receptor + '.pdbqt'
-    l = "ligands/" + ligand + '.pdbqt'
-    command = ["vina", l , "--exhaustiveness" , "32" , "--out", r]
-    subprocess.run(command)
+def download_all_protein(genes):
+    protiens = {}
+    for g in genes:
+        try:
+            i = get_rcsb_id(g)
+            download_pdb(i)
+            protiens[g] = i
+        except:
+            pass
+    print(list(protiens.values()))
+    prepare_receptor(list(protiens.values()))
+    return protiens
+
+def download_all_ligands(inchikeys):
+    zincids = {}
+    for c in inchikeys:
+        try:
+            zinc = get_zincid(c)
+            download_with_zincid(zinc, 'sdf')
+            zincids[c] = zinc
+        except:
+            pass
+    prepare_ligand(list(zincids.values()))
+    return zincids
